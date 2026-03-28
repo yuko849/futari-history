@@ -1,0 +1,18 @@
+document.getElementById('import-file').addEventListener('change', function(){
+  const file = this.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e){
+    try{
+      const data = JSON.parse(e.target.result);
+      if(data.entries){entries=data.entries;photos=data.photos||{};genres=data.genres||loadGenres();}
+      else if(Array.isArray(data)){entries=data;photos={};}
+      nextId=Math.max(...entries.map(x=>x.id),0)+1;
+      save();savePhotos();saveGenres();
+      currentView='top';
+      render();toast('読みこんだよ');
+    }catch(err){toast('ファイルが読めなかったよ');}
+  };
+  reader.readAsText(file);
+  this.value='';
+});
