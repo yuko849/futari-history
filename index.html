@@ -506,6 +506,12 @@ function toast(msg){
   t.textContent=msg;t.classList.add('show');
   setTimeout(()=>t.classList.remove('show'),2000);
 }
+window.openYear = function(year){
+  alert('openYear called: ' + year);
+  currentView = year;
+  render();
+  window.scrollTo(0,0);
+}
 render();
 </script>
 </body>
