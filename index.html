@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>2人の日々</title>
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="icon" href="icon.png">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Zen Maru Gothic',sans-serif;background:#f5e1d8;color:#5a4a3a;min-height:100vh;padding-bottom:100px}
+.header{text-align:center;padding:36px 20px 12px}
+.header h1{font-size:1.35rem;font-weight:500;letter-spacing:.15em;color:#7a5a50}
+.header p{font-size:.8rem;color:#b08a7a;margin-top:4px}
+.header-icon{font-size:1.6rem;margin-bottom:4px;color:#e8967a}
+.toolbar{display:flex;justify-content:center;gap:10px;padding:12px 20px}
+.toolbar button{background:#fff5f0;border:1px solid #e0c8be;border-radius:20px;padding:8px 18px;font-family:inherit;font-size:.8rem;color:#7a5a50;cursor:pointer;transition:all .2s}
+.toolbar button:hover{background:#f0d8cc;transform:translateY(-1px)}
+.toolbar button.active{background:linear-gradient(135deg,#e8967a,#d4768a);color:#fff;border-color:transparent}
+.backup-bar{display:flex;justify-content:center;gap:8px;padding:8px 20px 0}
+.backup-bar button,.backup-bar label{background:#fff8f4;border:1px solid #e0c8be;border-radius:16px;padding:6px 14px;font-family:inherit;font-size:.72rem;color:#a08878;cursor:pointer}
+.backup-bar input[type=file]{display:none}
+.genre-manager{max-width:500px;margin:8px auto 0;padding:0 20px}
+.genre-manager-inner{background:#fff8f4;border-radius:14px;padding:14px 16px;border:1px solid #f0ddd4}
+.genre-manager-title{font-size:.78rem;color:#a07a6a;margin-bottom:10px;font-weight:500}
+.genre-list-item{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.genre-color-dot{width:14px;height:14px;border-radius:50%;flex-shrink:0}
+.genre-name-input{flex:1;border:1px solid #e0c8be;border-radius:8px;padding:5px 8px;font-family:inherit;font-size:.8rem;color:#5a4a3a;background:#fff}
+.genre-del-btn{background:none;border:none;font-size:.9rem;cursor:pointer;opacity:.5;padding:2px 4px}
+.genre-del-btn:hover{opacity:1}
+.genre-add-btn{background:#e0c8be;border:none;border-radius:8px;padding:6px 14px;font-family:inherit;font-size:.78rem;color:#7a5a50;cursor:pointer;margin-top:4px}
+.genre-manager-toggle{background:#fff8f4;border:1px solid #e0c8be;border-radius:16px;padding:6px 14px;font-family:inherit;font-size:.72rem;color:#a08878;cursor:pointer}
+.content{max-width:500px;margin:0 auto;padding:0 20px}
+.year-btn{display:flex;align-items:center;justify-content:space-between;background:#fff8f4;border:1px solid #f0ddd4;border-radius:14px;padding:16px 20px;margin-bottom:10px;margin-top:10px;cursor:pointer;transition:all .2s;box-shadow:0 1px 4px rgba(140,90,70,.07)}
+.year-btn:hover{background:#f0d8cc;transform:translateY(-1px)}
+.year-btn:active{transform:scale(.98)}
+.year-btn-label{font-size:1.1rem;font-weight:700;color:#7a5a50;letter-spacing:.1em}
+.year-btn-count{font-size:.78rem;color:#7a5a50;background:#f5e1d8;padding:4px 12px;border-radius:12px}
+.year-btn-mirai .year-btn-label{color:#d4768a}
+.back-nav{display:flex;align-items:center;gap:8px;padding:8px 0 12px;cursor:pointer;color:#d4768a;font-size:.95rem;font-weight:500}
+.back-nav:hover{opacity:.7}
+.month-heading{font-size:.95rem;font-weight:700;color:#a07a6a;letter-spacing:.08em;padding:16px 0 8px;margin-top:4px;border-bottom:1px solid #e8d4cc}
+.entry{background:#fff8f4;border:1px solid #f0ddd4;border-left:6px solid transparent;border-radius:14px;padding:14px 16px;margin-bottom:8px;margin-top:8px;position:relative;box-shadow:0 1px 4px rgba(140,90,70,.07);transition:transform .15s,box-shadow .15s;overflow:hidden}
+.entry:active{transform:scale(.98)}
+.entry .title{font-size:.95rem;font-weight:500;color:#6a4a3a;line-height:1.5}
+.entry .note-text{font-size:.82rem;color:#7a5a4a;margin-top:4px;line-height:1.5}
+.entry .date-tag{font-size:.7rem;color:#b8a090;margin-top:4px}
+.entry .emoji-tag{position:absolute;top:12px;right:14px;font-size:1.1rem}
+.entry-img{width:100%;max-height:180px;object-fit:cover;border-radius:10px;margin-top:8px}
+.entry-actions{display:none;position:absolute;top:8px;right:8px;gap:4px}
+.entry-actions button{background:none;border:none;font-size:1rem;cursor:pointer;padding:4px;opacity:.5}
+.entry-actions button:hover{opacity:1}
+.editing .entry-actions{display:flex}
+.editing .entry{cursor:grab;padding-right:80px}
+.editing .entry .emoji-tag{display:none}
+.dragging{opacity:.4;transform:scale(.95)}
+.drag-over{border-color:#d4768a;box-shadow:0 0 0 2px rgba(212,118,138,.2)}
+.genre-tag{display:inline-block;font-size:.65rem;padding:2px 8px;border-radius:10px;margin-top:5px;font-weight:500;color:#fff}
+.fab{position:fixed;bottom:28px;right:28px;width:54px;height:54px;border-radius:50%;background:linear-gradient(135deg,#e8967a,#d4768a);color:#fff;border:none;font-size:1.6rem;cursor:pointer;box-shadow:0 3px 12px rgba(200,100,100,.3);transition:transform .2s;z-index:90;display:none}
+.fab:hover{transform:scale(1.08)}
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:100;align-items:flex-end;justify-content:center}
+.modal-bg.open{display:flex}
+.modal{background:#f5e1d8;border-radius:20px 20px 0 0;width:100%;max-width:500px;padding:28px 24px 36px;max-height:85vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.modal h3{font-size:1rem;font-weight:500;color:#7a5a50;margin-bottom:16px;text-align:center}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:.75rem;color:#a08878;margin-bottom:4px}
+.field input,.field textarea,.field select{width:100%;border:1px solid #e0c8be;border-radius:10px;padding:10px 12px;font-family:inherit;font-size:.9rem;color:#5a4a3a;background:#fff8f4;outline:none}
+.field input:focus,.field textarea:focus{border-color:#d4768a}
+.field textarea{resize:vertical;min-height:60px}
+.img-preview{width:100%;max-height:150px;object-fit:cover;border-radius:10px;margin-top:6px}
+.img-pick-btn{font-size:.8rem;background:#e0c8be;border:none;border-radius:8px;padding:6px 16px;font-family:inherit;color:#7a5a50;cursor:pointer;margin-top:4px}
+.img-clear-btn{font-size:.75rem;background:#d4a0a0;border:none;border-radius:8px;padding:5px 12px;font-family:inherit;color:#fff;cursor:pointer;margin-top:6px}
+.modal-btns{display:flex;gap:10px;margin-top:18px}
+.modal-btns button{flex:1;padding:12px;border-radius:12px;font-family:inherit;font-size:.9rem;cursor:pointer;border:none}
+.btn-save{background:linear-gradient(135deg,#e8967a,#d4768a);color:#fff}
+.btn-cancel{background:#e0c8be;color:#7a5a50}
+.btn-delete{background:#d4a0a0;color:#fff;margin-top:8px;width:100%;padding:10px;border-radius:12px;font-family:inherit;font-size:.85rem;cursor:pointer;border:none}
+.toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(20px);background:#5a4a3a;color:#fff;padding:10px 22px;border-radius:20px;font-size:.82rem;opacity:0;transition:all .3s;z-index:110;pointer-events:none}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.empty-msg{text-align:center;color:#b8a090;font-size:.85rem;padding:40px 20px}
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="header-icon">✦</div>
+  <h1>2人の日々</h1>
+  <p>アサヒとユウコの記録</p>
+</div>
+<div class="toolbar">
+  <button id="btn-view" class="active" onclick="setMode('view')">みる</button>
+  <button id="btn-edit" onclick="setMode('edit')">編集</button>
+</div>
+<div class="backup-bar">
+  <button onclick="exportData()">📦 書き出す</button>
+  <label>📂 読みこむ<input type="file" accept=".json" onchange="importData(this)"></label>
+  <button class="genre-manager-toggle" onclick="toggleGenreManager()">🏷️ ジャンル</button>
+</div>
+<div class="genre-manager" id="genre-manager" style="display:none">
+  <div class="genre-manager-inner">
+    <div class="genre-manager-title">ジャンルの管理</div>
+    <div id="genre-list"></div>
+    <button class="genre-add-btn" onclick="addGenre()">＋ ジャンルを追加</button>
+  </div>
+</div>
+<div class="content" id="content"></div>
+<button class="fab" id="fab" onclick="openAdd()">＋</button>
+<div class="modal-bg" id="modal-bg" onclick="if(event.target===this)closeModal()">
+  <div class="modal" id="modal">
+    <h3 id="modal-title">あたらしい記録</h3>
+    <div class="field"><label>いつ（例: 2025/7/2, 2025年夏）</label><input id="f-date" placeholder="2025/10/27"></div>
+    <div class="field"><label>できごと</label><textarea id="f-title" placeholder="房総半島の旅"></textarea></div>
+    <div class="field"><label>ひとこと（なくてもOK）</label><textarea id="f-note" placeholder="灯台に登って「生きてる」と言い合った"></textarea></div>
+    <div class="field"><label>えもじ</label><input id="f-emoji" placeholder="🌊" maxlength="4"></div>
+    <div class="field">
+      <label>ジャンル</label>
+      <select id="f-genre"><option value="">なし</option></select>
+    </div>
+    <div class="field">
+      <label>しゃしん（1枚）</label>
+      <button type="button" class="img-pick-btn" onclick="document.getElementById('f-img-input').click()">えらぶ</button>
+      <input type="file" id="f-img-input" accept="image/*" style="display:none" onchange="previewImg(this)">
+      <img id="f-img-preview" class="img-preview" style="display:none">
+      <button type="button" class="img-clear-btn" id="f-img-clear" style="display:none" onclick="clearImg()">しゃしんをけす</button>
+    </div>
+    <div class="field">
+      <label>ソート用の日付</label>
+      <input id="f-sort" type="date">
+    </div>
