@@ -97,6 +97,7 @@ button:disabled{opacity:.5;cursor:wait}
   <div class="header-icon">✦</div>
   <h1>2人の日々</h1>
   <p>アサヒとユウコの記録</p>
+  <p style="font-size:.65rem">カレンダー版 2</p>
 </div>
 
 <div class="toolbar">
@@ -126,8 +127,9 @@ button:disabled{opacity:.5;cursor:wait}
     <h3 id="modal-title">あたらしい記録</h3>
 
     <div class="field">
-      <label>いつ（例: 2025/7/2, 2025年夏）</label>
-      <input id="f-date" placeholder="2025/10/27">
+      <label for="f-date">いつ</label>
+      <input id="f-date" type="date" required>
+      <p id="original-date" class="photo-help" hidden></p>
     </div>
 
     <div class="field">
@@ -157,11 +159,6 @@ button:disabled{opacity:.5;cursor:wait}
     <div class="field">
       <label>ジャンル</label>
       <select id="f-genre"><option value="">なし</option></select>
-    </div>
-
-    <div class="field">
-      <label>ソート用の日付</label>
-      <input id="f-sort" type="date">
     </div>
 
     <div class="modal-btns">
@@ -434,7 +431,7 @@ function openAdd(){
   resetPhoto('');
   document.getElementById('f-note').value='';
   document.getElementById('f-emoji').value='';
-  document.getElementById('f-sort').value='';
+  document.getElementById('original-date').hidden=true;
   document.getElementById('btn-del').style.display='none';
   hideDeleteConfirm();
   buildGenreSelect('');
@@ -446,12 +443,14 @@ function openEdit(id){
   if(!e)return;
   editId=id;
   document.getElementById('modal-title').textContent='きろくをへんしゅう';
-  document.getElementById('f-date').value=e.date||'';
+  document.getElementById('f-date').value=calendarDate(e);
   document.getElementById('f-title').value=e.title||'';
   resetPhoto(e.image||'');
   document.getElementById('f-note').value=e.note||'';
   document.getElementById('f-emoji').value=e.emoji||'';
-  document.getElementById('f-sort').value=e.sort||'';
+  const originalDate=document.getElementById('original-date');
+  originalDate.textContent='これまでの日付：'+(e.date||'日付なし')+'（日付を変えなければ、この表記を残すよ）';
+  originalDate.hidden=!e.date||exactDate(e.date)!=='';
   buildGenreSelect(e.genre||'');
   document.getElementById('btn-del').style.display='block';
   hideDeleteConfirm();
@@ -468,12 +467,16 @@ function closeModal(){
 
 async function saveEntry(){
   if(photoBusy||saving)return;
-  const date=document.getElementById('f-date').value.trim();
+  const selectedDate=document.getElementById('f-date').value;
+  const existing=editId===null?null:entries.find(e=>e.id===editId);
+  const unchanged=existing&&selectedDate===calendarDate(existing);
+  if(!selectedDate&&!unchanged){toast('日付をえらんでね');return;}
+  const date=unchanged?existing.date:selectedDate.replace(/-/g,'/');
   const title=document.getElementById('f-title').value.trim();
   const image=draftPhoto;
   const note=document.getElementById('f-note').value.trim();
   const emoji=document.getElementById('f-emoji').value.trim();
-  const sort=document.getElementById('f-sort').value||guessSort(date);
+  const sort=unchanged?existing.sort:selectedDate;
   const genre=document.getElementById('f-genre').value||'';
 
   if(!title){
@@ -529,6 +532,17 @@ async function deleteEntry(){
   render();
   closeModal();
   toast('けしたよ');
+}
+
+function exactDate(value){
+  const match=String(value||'').match(/^(\d{4})[\/\-年](\d{1,2})[\/\-月](\d{1,2})日?$/);
+  if(!match)return '';
+  const iso=match[1]+'-'+match[2].padStart(2,'0')+'-'+match[3].padStart(2,'0');
+  const date=new Date(iso+'T00:00:00Z');
+  return !Number.isNaN(date.getTime())&&date.toISOString().slice(0,10)===iso?iso:'';
+}
+function calendarDate(entry){
+  return exactDate(entry.date)||exactDate(entry.sort)||exactDate(guessSort(entry.date));
 }
 
 function guessSort(d){
