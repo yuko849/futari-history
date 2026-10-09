@@ -64,6 +64,10 @@ body{font-family:'Zen Maru Gothic',sans-serif;background:#f5e1d8;color:#5a4a3a;m
   border:1px solid #f0ddd4;
   background:#f5e1d8;
 }
+.photo-help{font-size:.75rem;line-height:1.6;margin-top:8px;color:#8a6a5a}
+.photo-button{display:inline-block;background:#fff8f4;border:1px solid #d4a99a;border-radius:10px;padding:12px;font:inherit;color:#7a5a50;cursor:pointer}
+#photo-preview{max-height:240px}
+button:disabled{opacity:.5;cursor:wait}
 .fab{position:fixed;bottom:28px;right:28px;width:54px;height:54px;border-radius:50%;background:linear-gradient(135deg,#e8967a,#d4768a);color:#fff;border:none;font-size:1.6rem;cursor:pointer;box-shadow:0 3px 12px rgba(200,100,100,.3);transition:transform .2s;z-index:90;display:none}
 .fab:hover{transform:scale(1.08)}
 .modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:100;align-items:flex-end;justify-content:center}
@@ -132,8 +136,12 @@ body{font-family:'Zen Maru Gothic',sans-serif;background:#f5e1d8;color:#5a4a3a;m
     </div>
 
     <div class="field">
-      <label>写真URL</label>
-      <input id="f-image" placeholder="https://...">
+      <label for="f-photo">写真（なくてもOK）</label>
+      <input id="f-photo" type="file" accept="image/*" onchange="choosePhoto(this)">
+      <img id="photo-preview" class="entry-image" alt="選んだ写真" hidden>
+      <button id="photo-remove" class="photo-button" type="button" onclick="removePhoto()" hidden>写真をはずす</button>
+      <p id="photo-status" class="photo-help" role="status" aria-live="polite"></p>
+      <p class="photo-help">写真はこのブラウザに保存されます。大切な記録は「書き出す」で写真ごと保存してね。</p>
     </div>
 
     <div class="field">
@@ -158,7 +166,7 @@ body{font-family:'Zen Maru Gothic',sans-serif;background:#f5e1d8;color:#5a4a3a;m
 
     <div class="modal-btns">
       <button class="btn-cancel" onclick="closeModal()">やめる</button>
-      <button class="btn-save" onclick="saveEntry()">のこす</button>
+      <button id="btn-save" class="btn-save" onclick="saveEntry()">のこす</button>
     </div>
 
     <div>
@@ -212,8 +220,28 @@ function load(){
   return s?JSON.parse(s):JSON.parse(JSON.stringify(defaultData));
 }
 
-function save(){
-  localStorage.setItem(KEY,JSON.stringify(entries));
+let db;
+function openDatabase(){
+  return new Promise((resolve,reject)=>{
+    const request=indexedDB.open('futari_history_photos',1);
+    request.onupgradeneeded=()=>request.result.createObjectStore('records');
+    request.onsuccess=()=>resolve(request.result);
+    request.onerror=()=>reject(request.error);
+    request.onblocked=()=>reject(new Error('別のタブを閉じてね'));
+  });
+}
+function databaseAction(mode,value){
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction('records',mode);
+    const store=tx.objectStore('records');
+    const request=mode==='readonly'?store.get(KEY):store.put(value,KEY);
+    tx.oncomplete=()=>resolve(request.result);
+    tx.onerror=()=>reject(tx.error);
+    tx.onabort=()=>reject(tx.error);
+  });
+}
+async function save(){
+  await databaseAction('readwrite',entries);
 }
 
 function loadGenres(){
@@ -225,7 +253,8 @@ function saveGenres(){
   localStorage.setItem(GKEY,JSON.stringify(genres));
 }
 
-let entries=load(),genres=loadGenres(),mode='view',editId=null;
+let entries=[],genres=loadGenres(),mode='view',editId=null;
+let draftPhoto='',photoVersion=0,photoBusy=false,saving=false;
 let currentView='top';
 let nextId=Math.max(...entries.map(e=>e.id),0)+1;
 let nextGId=100;
@@ -247,7 +276,7 @@ function getMonth(sort){
 }
 
 function esc(s){
-  return s?s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'):'';
+  return s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'):'';
 }
 
 function getYearGroups(){
@@ -327,7 +356,7 @@ function renderYear(year){
           <button class="drag-handle">☰</button>
         </div>
         <div class="title">${esc(e.title)}</div>
-        ${e.image?`<img class="entry-image" src="${esc(e.image)}" alt="">`:''}
+        ${e.image?`<img class="entry-image" loading="lazy" src="${esc(e.image)}" alt="">`:''}
         ${e.note?'<div class="note-text">'+esc(e.note)+'</div>':''}
         <div class="date-tag">${esc(e.date)}</div>
         ${genre?`<span class="genre-tag" style="background:${genre.color}">${esc(genre.name)}</span>`:''}
@@ -402,7 +431,7 @@ function openAdd(){
   document.getElementById('modal-title').textContent='あたらしい記録';
   document.getElementById('f-date').value='';
   document.getElementById('f-title').value='';
-  document.getElementById('f-image').value='';
+  resetPhoto('');
   document.getElementById('f-note').value='';
   document.getElementById('f-emoji').value='';
   document.getElementById('f-sort').value='';
@@ -419,7 +448,7 @@ function openEdit(id){
   document.getElementById('modal-title').textContent='きろくをへんしゅう';
   document.getElementById('f-date').value=e.date||'';
   document.getElementById('f-title').value=e.title||'';
-  document.getElementById('f-image').value=e.image||'';
+  resetPhoto(e.image||'');
   document.getElementById('f-note').value=e.note||'';
   document.getElementById('f-emoji').value=e.emoji||'';
   document.getElementById('f-sort').value=e.sort||'';
@@ -430,14 +459,18 @@ function openEdit(id){
 }
 
 function closeModal(){
+  if(saving)return;
+  photoVersion++;
+  photoBusy=false;
   document.getElementById('modal-bg').classList.remove('open');
   hideDeleteConfirm();
 }
 
-function saveEntry(){
+async function saveEntry(){
+  if(photoBusy||saving)return;
   const date=document.getElementById('f-date').value.trim();
   const title=document.getElementById('f-title').value.trim();
-  const image=document.getElementById('f-image').value.trim();
+  const image=draftPhoto;
   const note=document.getElementById('f-note').value.trim();
   const emoji=document.getElementById('f-emoji').value.trim();
   const sort=document.getElementById('f-sort').value||guessSort(date);
@@ -448,6 +481,9 @@ function saveEntry(){
     return;
   }
 
+  const previous=structuredClone(entries);
+  saving=true;
+  updatePhotoControls();
   if(editId!==null){
     const e=entries.find(x=>x.id===editId);
     if(e){
@@ -472,16 +508,24 @@ function saveEntry(){
     });
   }
 
-  save();
-  render();
-  closeModal();
-  toast(editId!==null?'のこしたよ':'ついかしたよ');
+  try{
+    await save();
+    saving=false;
+    render();
+    closeModal();
+    toast(editId!==null?'のこしたよ':'ついかしたよ');
+  }catch(err){
+    entries=previous;
+    alert('保存できなかったよ。空き容量を確認して、もう一度「のこす」を押してね。入力した内容はこのまま残してあるよ。');
+  }finally{saving=false;updatePhotoControls();}
 }
 
-function deleteEntry(){
+async function deleteEntry(){
+  if(saving||photoBusy)return;
+  const previous=entries;
   if(editId===null)return;
   entries=entries.filter(e=>e.id!==editId);
-  save();
+  try{await save();}catch(err){entries=previous;alert('けせなかったよ。もう一度ためしてね。');return;}
   render();
   closeModal();
   toast('けしたよ');
@@ -528,13 +572,13 @@ function renameGenre(id,name){
   }
 }
 
-function deleteGenre(id){
+async function deleteGenre(id){
   genres=genres.filter(g=>g.id!==id);
   entries.forEach(e=>{
     if(e.genre===id)e.genre='';
   });
   saveGenres();
-  save();
+  await save();
   render();
   renderGenreList();
   toast('ジャンルをけしたよ');
@@ -574,7 +618,7 @@ function dl(ev){
   if(el)el.classList.remove('drag-over');
 }
 
-function dd(ev,targetId){
+async function dd(ev,targetId){
   ev.preventDefault();
   const el=ev.target.closest('.entry');
   if(el)el.classList.remove('drag-over');
@@ -584,7 +628,7 @@ function dd(ev,targetId){
     const tmp=a.sort;
     a.sort=b.sort;
     b.sort=tmp;
-    save();
+    await save();
     render();
   }
   dragId=null;
@@ -602,7 +646,8 @@ function exportData(){
   a.href=URL.createObjectURL(blob);
   a.download='futari_history_'+new Date().toISOString().slice(0,10)+'.json';
   a.click();
-  toast('書き出したよ');
+  setTimeout(()=>URL.revokeObjectURL(a.href),60000);
+  toast('写真もいっしょに書き出したよ');
 }
 
 async function importData(input){
@@ -610,9 +655,14 @@ async function importData(input){
   if(!file)return;
   toast('よみこんでるよ…');
   const reader=new FileReader();
-  reader.onload=function(e){
+  reader.onload=async function(e){
+    const oldEntries=entries,oldGenres=genres;
     try{
       const data=JSON.parse(e.target.result);
+      if(!Array.isArray(data)&&!Array.isArray(data.entries))throw new Error('記録がありません');
+      const imported=Array.isArray(data)?data:data.entries;
+      if(!imported.every(e=>e&&Number.isFinite(e.id)&&typeof e.title==='string'&&typeof e.sort==='string'&&(!e.image||typeof e.image==='string')))throw new Error('記録の形式が違います');
+      if(!confirm('今の記録を、このファイルの記録に入れかえる？'))return;
       if(data.entries){
         entries=data.entries;
         genres=data.genres||loadGenres();
@@ -620,12 +670,13 @@ async function importData(input){
         entries=data;
       }
       nextId=Math.max(...entries.map(x=>x.id),0)+1;
-      save();
+      await save();
       saveGenres();
       render();
       toast('読みこんだよ');
     }catch(err){
-      toast('ファイルが読めなかったよ');
+      entries=oldEntries;genres=oldGenres;
+      alert('読みこめなかったよ。ファイルの内容や空き容量を確認してね。');
     }
   };
   reader.readAsText(file);
@@ -639,7 +690,70 @@ function toast(msg){
   setTimeout(()=>t.classList.remove('show'),2500);
 }
 
-render();
+function updatePhotoControls(){
+  document.getElementById('btn-save').disabled=photoBusy||saving;
+  document.getElementById('f-photo').disabled=saving;
+  document.getElementById('photo-remove').disabled=saving;
+  const preview=document.getElementById('photo-preview');
+  preview.hidden=!draftPhoto;
+  preview.style.display=draftPhoto?'block':'none';
+  if(draftPhoto)preview.src=draftPhoto;else preview.removeAttribute('src');
+  document.getElementById('photo-remove').hidden=!draftPhoto;
+}
+function resetPhoto(value){
+  photoVersion++;
+  photoBusy=false;
+  draftPhoto=value;
+  document.getElementById('f-photo').value='';
+  document.getElementById('photo-status').textContent='';
+  updatePhotoControls();
+}
+function removePhoto(){resetPhoto('');}
+async function choosePhoto(input){
+  const file=input.files[0];
+  if(!file)return;
+  const version=++photoVersion;
+  photoBusy=true;
+  updatePhotoControls();
+  document.getElementById('photo-status').textContent='写真を用意してるよ…';
+  const url=URL.createObjectURL(file);
+  try{
+    const img=new Image();
+    await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;img.src=url;});
+    const scale=Math.min(1,1600/Math.max(img.naturalWidth,img.naturalHeight));
+    const canvas=document.createElement('canvas');
+    canvas.width=Math.max(1,Math.round(img.naturalWidth*scale));
+    canvas.height=Math.max(1,Math.round(img.naturalHeight*scale));
+    const ctx=canvas.getContext('2d');
+    ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.drawImage(img,0,0,canvas.width,canvas.height);
+    const result=canvas.toDataURL('image/jpeg',.82);
+    if(result==='data:,')throw new Error('写真を変換できません');
+    if(version!==photoVersion)return;
+    draftPhoto=result;
+    document.getElementById('photo-status').textContent='この写真を貼るよ。「のこす」で保存してね。';
+  }catch(err){
+    if(version===photoVersion)document.getElementById('photo-status').textContent='この写真は読みこめなかったよ。JPEGかPNGの写真を選びなおしてね。';
+  }finally{
+    URL.revokeObjectURL(url);
+    if(version===photoVersion){photoBusy=false;input.value='';updatePhotoControls();}
+  }
+}
+async function initialize(){
+  document.querySelectorAll('button,input').forEach(el=>el.disabled=true);
+  try{
+    db=await openDatabase();
+    const stored=await databaseAction('readonly');
+    entries=stored===undefined?load():stored;
+    if(stored===undefined)await save();
+    nextId=Math.max(...entries.map(e=>e.id),0)+1;
+    render();
+    document.querySelectorAll('button,input').forEach(el=>el.disabled=false);
+  }catch(err){
+    document.getElementById('content').textContent='記録を開けなかったよ。この画面を開きなおしてね。以前の保存データは消していないよ。';
+  }
+}
+initialize();
 </script>
 </body>
 </html>
